@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NoteSprint</title>
+<meta name="description" content="A phone-first trainer for reading notes on the treble and bass staff. Name the note, see it on the keyboard, beat 2 seconds.">
+<meta name="theme-color" content="#d1235f">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23d1235f'/%3E%3Cg stroke='%23fff' stroke-width='2.5'%3E%3Cpath d='M10 20h44M10 28h44M10 36h44M10 44h44'/%3E%3C/g%3E%3Cellipse cx='32' cy='32' rx='8' ry='5.5' transform='rotate(-20 32 32)' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Music&family=Inter+Tight:wght@400;600;800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one-screen phone app; staff on top, answer pad in the thumb zone. */
+:root {
+  --bg: #f6f6f8; --surface: #ffffff; --ink: #17161f; --muted: #5d5b6c; --line: #dddce6;
+  --accent: #d1235f; --accent-soft: #fbe3ec; --good: #2f7d5b; --good-soft: #dff2e8; --bad: #c0392b; --bad-soft: #fbe4e1;
+  --key-w: #ffffff; --key-b: #17161f; --key-edge: #c9c7d4;
+  --body: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121118; --surface: #1b1a23; --ink: #ecebf3; --muted: #a3a1b4; --line: #34323f;
+    --accent: #ff5c93; --accent-soft: #3a1726; --good: #5cc495; --good-soft: #163327; --bad: #ff7a6b; --bad-soft: #3b1a17;
+    --key-w: #dcdbe4; --key-b: #0b0a10; --key-edge: #4a4856;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+[hidden] { display: none !important; }
+.app { max-width: 520px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; gap: 12px; }
+.top { display: flex; align-items: center; gap: 8px; }
+.top h1 { font-size: 22px; margin: 0; font-weight: 800; letter-spacing: -.02em; flex: 1; min-width: 0; }
+.top h1 span { color: var(--accent); }
+select, button { font: inherit; color: var(--ink); }
+select { width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 15px; }
+.label { font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.icon { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
+.meter { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.meter b { color: var(--ink); font-weight: 500; }
+.bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
+.stage svg { display: block; width: 100%; height: auto; }
+.stage.ok { border-color: var(--good); background: var(--good-soft); }
+.stage.no { border-color: var(--bad); background: var(--bad-soft); }
+.feedback { min-height: 44px; font-size: 14px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.feedback .big { font-size: 20px; font-weight: 800; }
+.feedback .ok { color: var(--good); }
+.feedback .no { color: var(--bad); }
+
+.kb { position: relative; height: 54px; display: flex; border-radius: 4px; overflow: hidden; }
+.kb .w { flex: 1; border: 1px solid var(--key-edge); border-left-width: 0; background: var(--key-w); position: relative; min-width: 0; }
+.kb .w:first-child { border-left-width: 1px; }
+.kb .w.mid::after { content: ""; position: absolute; left: 50%; bottom: 5px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--accent); }
+.kb .w.hit { background: var(--good); }
+.kb .w.hit.wrong { background: var(--bad); }
+.kb .k { position: absolute; top: 0; height: 58%; background: var(--key-b); border-radius: 0 0 2px 2px; pointer-events: none; }
+.cap { font-size: 12px; color: var(--muted); text-align: center; }
+
+.pad { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: auto; }
+.pad button { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.pad button b { font-size: 22px; line-height: 1.1; }
+.pad button span { font-size: 11px; color: var(--muted); }
+.pad button:active { transform: scale(.96); }
+.pad button.ok { background: var(--good); border-color: var(--good); color: var(--surface); }
+.pad button.no { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+.pad button.ok span, .pad button.no span { color: var(--surface); }
+.pad button:focus-visible, .icon:focus-visible, .cta:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cta { width: 100%; background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 14px; font-size: 17px; font-weight: 800; cursor: pointer; }
+
+.summary { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.summary h2 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tile { border-top: 3px solid var(--line); padding-top: 6px; min-width: 0; }
+.tile .v { font-family: var(--mono); font-size: 24px; font-variant-numeric: tabular-nums; }
+.tile .l { font-size: 12px; color: var(--muted); }
+.tile.goal { border-color: var(--accent); }
+.chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--mono); font-size: 13px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+.chip.bad { border-color: var(--bad); color: var(--bad); }
+.hist { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+.foot { font-size: 12px; color: var(--muted); text-align: center; margin: 0; }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } .pad button:active { transform: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <h1>Note<span>Sprint</span></h1>
+    <button type="button" class="icon" id="soundBtn" aria-pressed="true">Sound on</button>
+  </div>
+  <label for="preset" class="label">Practice set</label>
+  <select id="preset"></select>
+
+  <div id="play">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="meter"><span>Note <b id="qNo">1</b>/20</span><span>Correct <b id="qOk">0</b></span><span>Time <b id="qTime">0.0</b>s</span></div>
+      <div class="bar"><i id="qBar"></i></div>
+      <div class="stage" id="stage"><svg id="staff" viewBox="0 0 320 170" role="img" aria-label="A note on the staff"></svg></div>
+      <div class="feedback" id="feedback">Read the note, then tap its name</div>
+      <div><div class="kb" id="kb" aria-hidden="true"></div><div class="cap">After you answer, the key lights up. The pink dot is middle C.</div></div>
+    </div>
+  </div>
+
+  <div id="done" hidden></div>
+
+  <div class="pad" id="pad"></div>
+  <div class="hist" id="hist"></div>
+  <p class="foot">Progress is saved in this browser. On a computer, press C D E F G A B to answer.</p>
+</div>
+
+<script>
+const LET = "CDEFGAB", SOL = ["do", "re", "mi", "fa", "sol", "la", "ti"];
+const ROUND = 20;
+const toD = s => Number(s.slice(1)) * 7 + LET.indexOf(s[0]);
+const nameOf = d => LET[d % 7] + Math.floor(d / 7);
+const PRESETS = [
+  { id: "rh-c", label: "Right hand C position · treble C4–G4", parts: [["t", "C4", "G4"]] },
+  { id: "lh-c", label: "Left hand C position · bass C3–G3", parts: [["b", "C3", "G3"]] },
+  { id: "c-both", label: "C position, both hands", parts: [["t", "C4", "G4"], ["b", "C3", "G3"]] },
+  { id: "g-pos", label: "G position, both hands", parts: [["t", "G4", "D5"], ["b", "G2", "D3"]] },
+  { id: "treble", label: "Whole treble staff · C4–A5", parts: [["t", "C4", "A5"]] },
+  { id: "bass", label: "Whole bass staff · E2–C4", parts: [["b", "E2", "C4"]] },
+  { id: "all", label: "Grand staff · everything", parts: [["t", "C4", "A5"], ["b", "E2", "C4"]] },
+];
+const LANDMARKS = {
+  t: [["C4", "middle C (ledger line below)"], ["G4", "G4 (2nd line, where the treble clef curls)"], ["C5", "C5 (3rd space)"]],
+  b: [["C3", "C3 (2nd space)"], ["F3", "F3 (4th line, between the bass clef's dots)"], ["C4", "middle C (ledger line above)"]],
+};
+
+// ---------- persistence ----------
+const LKEY = "notesprint-v1";
+let store = { preset: "rh-c", sound: true, notes: {}, rounds: [] };
+try { Object.assign(store, JSON.parse(localStorage.getItem(LKEY) || "{}")); } catch (e) {}
+const save = () => { try { localStorage.setItem(LKEY, JSON.stringify(store)); } catch (e) {} };
+
+// ---------- sound ----------
+let ctx = null;
+function tone(d) {
+  if (!store.sound) return;
+  try {
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume();
+    const midi = 12 * (Math.floor(d / 7) + 1) + [0, 2, 4, 5, 7, 9, 11][d % 7];
+    const f = 440 * Math.pow(2, (midi - 69) / 12), t = ctx.currentTime;
+    [[1, 0.35, "triangle"], [2, 0.08, "sine"]].forEach(([m, v, type]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type; o.frequency.value = f * m;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+      o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 1.2);
+    });
+  } catch (e) {}
+}
+
+// ---------- staff ----------
+const svg = document.getElementById("staff");
+const TOP = 52, GAP = 12, BOT = TOP + 4 * GAP, NX = 200;
+const yFor = (clef, d) => BOT - (d - (clef === "t" ? toD("E4") : toD("G2"))) * GAP / 2;
+function drawStaff(clef, d, color) {
+  let s = "";
+  for (let i = 0; i < 5; i++) s += `<line x1="10" x2="310" y1="${TOP + i * GAP}" y2="${TOP + i * GAP}" stroke="var(--ink)" stroke-width="1.3"/>`;
+  s += `<text id="clefGlyph" x="0" y="0" font-family="Noto Music, serif" font-size="100" fill="var(--ink)">${clef === "t" ? "\u{1D11E}" : "\u{1D122}"}</text>`;
+  if (d != null) {
+    const y = yFor(clef, d), c = color || "var(--ink)";
+    for (let ly = BOT + GAP; ly <= y + 0.1; ly += GAP) s += `<line x1="${NX - 17}" x2="${NX + 17}" y1="${ly}" y2="${ly}" stroke="var(--ink)" stroke-width="1.3"/>`;
+    for (let ly = TOP - GAP; ly >= y - 0.1; ly -= GAP) s += `<line x1="${NX - 17}" x2="${NX + 17}" y1="${ly}" y2="${ly}" stroke="var(--ink)" stroke-width="1.3"/>`;
+    s += `<ellipse cx="${NX}" cy="${y}" rx="8.6" ry="6" transform="rotate(-20 ${NX} ${y})" fill="${c}"/>`;
+    const up = clef === "t" ? d < toD("B4") : d < toD("D3");
+    s += up ? `<line x1="${NX + 7.6}" x2="${NX + 7.6}" y1="${y - 2}" y2="${y - 36}" stroke="${c}" stroke-width="1.6"/>`
+            : `<line x1="${NX - 7.6}" x2="${NX - 7.6}" y1="${y + 2}" y2="${y + 36}" stroke="${c}" stroke-width="1.6"/>`;
+  }
+  svg.innerHTML = s;
+  fitClef(clef);
+}
+// Fit the clef glyph to engraving proportions (in staff spaces from its anchor line),
+// whatever metrics the font has: G clef spans 4.39 above to 2.63 below the G line,
+// F clef 1.02 above to 2.54 below the F line.
+function fitClef(clef) {
+  const g = document.getElementById("clefGlyph");
+  if (!g) return;
+  let b;
+  try { b = g.getBBox(); } catch (e) { return; }
+  if (!b || !b.height) return;
+  const anchor = clef === "t" ? BOT - GAP : TOP + GAP;
+  const top = anchor - (clef === "t" ? 4.39 : 1.02) * GAP;
+  const bottom = anchor + (clef === "t" ? 2.63 : 2.54) * GAP;
+  const k = (bottom - top) / b.height;
+  g.setAttribute("transform", `translate(${22 - b.x * k} ${top - b.y * k}) scale(${k})`);
+}
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (cur) drawStaff(cur.clef, cur.d); });
+
+// ---------- keyboard ----------
+const kbEl = document.getElementById("kb");
+function drawKb(pool) {
+  const lo = Math.min(...pool.map(p => p.d)), hi = Math.max(...pool.map(p => p.d));
+  const kbLo = Math.floor(lo / 7) * 7, kbHi = Math.floor(hi / 7) * 7 + 6, n = kbHi - kbLo + 1;
+  let h = "";
+  for (let d = kbLo; d <= kbHi; d++) h += `<div class="w${d === toD("C4") ? " mid" : ""}" data-d="${d}"></div>`;
+  for (let d = kbLo; d < kbHi; d++) if ([0, 1, 3, 4, 5].includes(d % 7)) {
+    const i = d - kbLo + 1;
+    h += `<div class="k" style="left:calc(${i * 100 / n}% - ${32 / n}%);width:${64 / n}%"></div>`;
+  }
+  kbEl.innerHTML = h;
+}
+function lightKb(d, wrong) {
+  kbEl.querySelectorAll(".w").forEach(w => w.classList.remove("hit", "wrong"));
+  const el = kbEl.querySelector(`.w[data-d="${d}"]`);
+  if (el) { el.classList.add("hit"); if (wrong) el.classList.add("wrong"); }
+}
+
+// ---------- game ----------
+const $ = id => document.getElementById(id);
+const pad = $("pad");
+pad.innerHTML = LET.split("").map((l, i) => `<button type="button" data-i="${i}"><b>${l}</b><span>${SOL[i]}</span></button>`).join("");
+const presetSel = $("preset");
+presetSel.innerHTML = PRESETS.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
+if (!PRESETS.find(p => p.id === store.preset)) store.preset = "rh-c";
+presetSel.value = store.preset;
+
+let pool = [], cur = null, prev = null, t0 = 0, locked = false, round = null, clock = null;
+function buildPool() {
+  const p = PRESETS.find(x => x.id === store.preset);
+  pool = [];
+  p.parts.forEach(([clef, a, b]) => { for (let d = toD(a); d <= toD(b); d++) pool.push({ clef, d }); });
+  drawKb(pool);
+}
+// Weak notes come up more often: weight grows with the note's miss rate.
+function pick() {
+  const cands = pool.filter(p => !prev || p.d !== prev.d || p.clef !== prev.clef);
+  const w = cands.map(p => { const s = store.notes[p.clef + nameOf(p.d)]; return 1 + (s && s.n ? 3 * (1 - s.ok / s.n) : 1); });
+  let r = Math.random() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < cands.length; i++) { r -= w[i]; if (r <= 0) return cands[i]; }
+  return cands[cands.length - 1];
+}
+function startRound() {
+  round = { i: 0, ok: 0, times: [], misses: {} };
+  $("done").hidden = true; $("play").hidden = false; pad.hidden = false;
+  next();
+}
+function next() {
+  if (round.i >= ROUND) return finish();
+  locked = false;
+  prev = cur; cur = pick();
+  $("stage").className = "stage";
+  pad.querySelectorAll("button").forEach(b => b.className = "");
+  lightKb(-1);
+  drawStaff(cur.clef, cur.d);
+  $("feedback").textContent = cur.clef === "t" ? "Treble clef — which note is this?" : "Bass clef — which note is this?";
+  $("qNo").textContent = round.i + 1;
+  $("qOk").textContent = round.ok;
+  $("qBar").style.width = `${round.i / ROUND * 100}%`;
+  t0 = performance.now();
+  clearInterval(clock);
+  clock = setInterval(() => { $("qTime").textContent = ((performance.now() - t0) / 1000).toFixed(1); }, 100);
+}
+function hint(clef, d) {
+  let best = null;
+  LANDMARKS[clef].forEach(([n, desc]) => { const diff = d - toD(n); if (!best || Math.abs(diff) < Math.abs(best.diff)) best = { diff, desc }; });
+  if (best.diff === 0) return `It's the landmark ${best.desc}`;
+  const n = Math.abs(best.diff);
+  return `Count ${best.diff > 0 ? "up" : "down"} ${n} step${n > 1 ? "s" : ""} from ${best.desc}`;
+}
+function answer(i) {
+  if (locked || !cur) return;
+  locked = true;
+  clearInterval(clock);
+  const ms = performance.now() - t0, ok = i === cur.d % 7, key = cur.clef + nameOf(cur.d);
+  const s = store.notes[key] || { n: 0, ok: 0, ms: 0 };
+  s.n++; if (ok) s.ok++; s.ms = Math.round(s.ms + (ms - s.ms) / s.n);
+  store.notes[key] = s; save();
+  round.i++; round.times.push(ms); if (ok) round.ok++; else round.misses[nameOf(cur.d)] = (round.misses[nameOf(cur.d)] || 0) + 1;
+  tone(cur.d);
+  pad.querySelector(`[data-i="${cur.d % 7}"]`).className = "ok";
+  lightKb(cur.d, !ok);
+  const fb = $("feedback");
+  $("qOk").textContent = round.ok;
+  if (ok) {
+    $("stage").className = "stage ok";
+    drawStaff(cur.clef, cur.d, "var(--good)");
+    fb.innerHTML = `<span class="big ok">${nameOf(cur.d)} ✓</span><span>${(ms / 1000).toFixed(1)}s${ms > 2000 ? " — try to be quicker" : ""}</span>`;
+    setTimeout(next, 650);
+  } else {
+    pad.querySelector(`[data-i="${i}"]`).className = "no";
+    $("stage").className = "stage no";
+    drawStaff(cur.clef, cur.d, "var(--bad)");
+    fb.innerHTML = "";
+    const a = document.createElement("span"); a.className = "big no"; a.textContent = `It's ${nameOf(cur.d)} (${SOL[cur.d % 7]})`;
+    const b = document.createElement("span"); b.textContent = hint(cur.clef, cur.d);
+    const c = document.createElement("button"); c.type = "button"; c.className = "icon"; c.id = "contBtn"; c.textContent = "Next";
+    c.onclick = next;
+    fb.append(a, b, c);
+  }
+}
+function finish() {
+  clearInterval(clock);
+  const acc = Math.round(round.ok / ROUND * 100);
+  const avg = round.times.reduce((a, b) => a + b, 0) / round.times.length / 1000;
+  const fast = Math.round(round.times.filter(t => t <= 2000).length / ROUND * 100);
+  store.rounds.push({ at: Date.now(), preset: store.preset, acc, avg: Math.round(avg * 10) / 10 });
+  store.rounds = store.rounds.slice(-30);
+  save();
+  $("play").hidden = true; pad.hidden = true;
+  const miss = Object.entries(round.misses).sort((a, b) => b[1] - a[1]);
+  const passed = acc >= 90 && avg <= 2;
+  const done = $("done");
+  done.innerHTML = `<div class="summary">
+    <h2>${passed ? "You've got this set. Move on to the next one." : "Round complete"}</h2>
+    <div class="tiles">
+      <div class="tile"><div class="v">${acc}%</div><div class="l">Accuracy</div></div>
+      <div class="tile goal"><div class="v">${avg.toFixed(1)}s</div><div class="l">Average (goal ≤ 2s)</div></div>
+      <div class="tile"><div class="v">${fast}%</div><div class="l">Within 2s</div></div>
+    </div>
+    ${miss.length ? `<div><div class="label">Missed this round</div><div class="chips">${miss.map(([n, c]) => `<span class="chip bad">${n} ×${c}</span>`).join("")}</div></div>` : ""}
+    <p class="cap" style="text-align:left;margin:0">To pass a set: 90% accuracy and an average under 2 seconds. Notes you miss show up more often next round.</p>
+    <button type="button" class="cta" id="againBtn">Play again</button>
+  </div>`;
+  done.hidden = false;
+  $("againBtn").onclick = startRound;
+  renderHist();
+}
+function renderHist() {
+  const el = $("hist");
+  const rows = Object.entries(store.notes).filter(([, s]) => s.n >= 3)
+    .map(([k, s]) => ({ k, acc: s.ok / s.n, ms: s.ms }))
+    .sort((a, b) => a.acc - b.acc || b.ms - a.ms).slice(0, 5);
+  const last = store.rounds.slice(-5).reverse();
+  el.innerHTML = "";
+  if (rows.length) {
+    const d = document.createElement("div");
+    d.innerHTML = `Needs work: <span class="chips">${rows.map(r =>
+      `<span class="chip${r.acc < .8 ? " bad" : ""}">${r.k[0] === "t" ? "𝄞" : "𝄢"} ${r.k.slice(1)} · ${Math.round(r.acc * 100)}% · ${(r.ms / 1000).toFixed(1)}s</span>`).join("")}</span>`;
+    el.appendChild(d);
+  }
+  if (last.length) {
+    const d = document.createElement("div");
+    d.textContent = "Recent rounds: " + last.map(r => `${r.acc}% / ${r.avg}s`).join("  ·  ");
+    el.appendChild(d);
+  }
+}
+
+pad.addEventListener("click", e => { const b = e.target.closest("button"); if (b) answer(Number(b.dataset.i)); });
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "SELECT") return;
+  const i = LET.indexOf(e.key.toUpperCase());
+  if (i >= 0 && e.key.length === 1 && !locked) answer(i);
+  else if ((e.key === "Enter" || e.key === " ") && locked && $("contBtn")) { e.preventDefault(); next(); }
+});
+presetSel.onchange = () => { store.preset = presetSel.value; save(); cur = null; prev = null; buildPool(); startRound(); };
+const soundBtn = $("soundBtn");
+const paintSound = () => { soundBtn.textContent = store.sound ? "Sound on" : "Sound off"; soundBtn.setAttribute("aria-pressed", String(store.sound)); };
+soundBtn.onclick = () => { store.sound = !store.sound; save(); paintSound(); };
+paintSound();
+buildPool();
+renderHist();
+startRound();
+</script>
+</body>
+</html>
