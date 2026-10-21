@@ -2,6 +2,8 @@
 
 A phone-first trainer for reading notes on the treble and bass staff.
 
+**Live demo: https://yilin-11.github.io/note-sprint/**
+
 A note appears on the staff, you tap its name, and the keyboard below lights up the key so the staff and the piano connect in your head. The goal is to name every note in under 2 seconds.
 
 ## Features
