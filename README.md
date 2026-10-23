@@ -18,6 +18,10 @@ A note appears on the staff, you tap its name, and the keyboard below lights up 
 
 On a computer you can answer with the keys `C D E F G A B`, and press `Enter` to continue after a miss.
 
+### USB MIDI keyboard
+
+Plug in a USB piano or MIDI controller and click **Connect MIDI** (Chrome, Edge or Firefox; Safari has no Web MIDI). Every key you press plays through the page, and white keys answer by note name in any octave. Browsers only start audio after a tap or key press, so if the keys are silent after reloading, click anywhere on the page once.
+
 ## Run it locally
 
 Open `index.html` in a browser. That's it.
