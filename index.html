@@ -99,6 +99,7 @@ select { width: 100%; background: var(--surface); border: 1px solid var(--line);
 <div class="app">
   <div class="top">
     <h1>Note<span>Sprint</span></h1>
+    <button type="button" class="icon" id="midiBtn" hidden>Connect MIDI</button>
     <button type="button" class="icon" id="soundBtn" aria-pressed="true">Sound on</button>
   </div>
   <label for="preset" class="label">Practice set</label>
@@ -118,7 +119,7 @@ select { width: 100%; background: var(--surface); border: 1px solid var(--line);
 
   <div class="pad" id="pad"></div>
   <div class="hist" id="hist"></div>
-  <p class="foot">Progress is saved in this browser. On a computer, press C D E F G A B to answer.</p>
+  <p class="foot">Progress is saved in this browser. On a computer, press C D E F G A B to answer, or play the note on a USB MIDI keyboard.</p>
 </div>
 
 <script>
@@ -148,17 +149,24 @@ const save = () => { try { localStorage.setItem(LKEY, JSON.stringify(store)); } 
 
 // ---------- sound ----------
 let ctx = null;
-function tone(d) {
+// Browsers only let audio start from a tap or key press, and MIDI input doesn't count,
+// so unlock the context on the first gesture anywhere on the page.
+function audio() {
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state !== "running") ctx.resume();
+  return ctx;
+}
+["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, () => { try { audio(); } catch (e) {} }, true));
+const midiOf = d => 12 * (Math.floor(d / 7) + 1) + [0, 2, 4, 5, 7, 9, 11][d % 7];
+function tone(midi, vel = 1) {
   if (!store.sound) return;
   try {
-    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-    ctx.resume();
-    const midi = 12 * (Math.floor(d / 7) + 1) + [0, 2, 4, 5, 7, 9, 11][d % 7];
+    audio();
     const f = 440 * Math.pow(2, (midi - 69) / 12), t = ctx.currentTime;
     [[1, 0.35, "triangle"], [2, 0.08, "sine"]].forEach(([m, v, type]) => {
       const o = ctx.createOscillator(), g = ctx.createGain();
       o.type = type; o.frequency.value = f * m;
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.01);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v * vel, t + 0.01);
       g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
       o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 1.2);
     });
@@ -273,7 +281,8 @@ function hint(clef, d) {
   const n = Math.abs(best.diff);
   return `Count ${best.diff > 0 ? "up" : "down"} ${n} step${n > 1 ? "s" : ""} from ${best.desc}`;
 }
-function answer(i) {
+// silent: the caller already played the key that was pressed (MIDI).
+function answer(i, silent) {
   if (locked || !cur) return;
   locked = true;
   clearInterval(clock);
@@ -282,7 +291,7 @@ function answer(i) {
   s.n++; if (ok) s.ok++; s.ms = Math.round(s.ms + (ms - s.ms) / s.n);
   store.notes[key] = s; save();
   round.i++; round.times.push(ms); if (ok) round.ok++; else round.misses[nameOf(cur.d)] = (round.misses[nameOf(cur.d)] || 0) + 1;
-  tone(cur.d);
+  if (!silent) tone(midiOf(cur.d));
   pad.querySelector(`[data-i="${cur.d % 7}"]`).className = "ok";
   lightKb(cur.d, !ok);
   const fb = $("feedback");
@@ -363,6 +372,40 @@ const soundBtn = $("soundBtn");
 const paintSound = () => { soundBtn.textContent = store.sound ? "Sound on" : "Sound off"; soundBtn.setAttribute("aria-pressed", String(store.sound)); };
 soundBtn.onclick = () => { store.sound = !store.sound; save(); paintSound(); };
 paintSound();
+
+// ---------- MIDI keyboard ----------
+// A USB piano or controller sends MIDI, not key presses. Every key sounds; white keys answer by letter.
+const midiBtn = $("midiBtn");
+const PC = [0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6]; // pitch class -> letter index, -1 for black keys
+let midi = null;
+function paintMidi() {
+  const names = midi ? [...midi.inputs.values()].map(x => x.name) : [];
+  const mute = store.sound && ctx && ctx.state !== "running";
+  midiBtn.textContent = !midi ? "Connect MIDI" : mute ? "Tap to enable sound" : names.length ? `MIDI: ${names[0]}` : "No MIDI device";
+}
+function onMidi(e) {
+  const [st, n, v] = e.data;
+  if ((st & 0xf0) !== 0x90 || !v) return;
+  tone(n, 0.4 + 0.6 * v / 127);
+  paintMidi();
+  const i = PC[n % 12];
+  if (i >= 0 && !locked) answer(i, true);
+}
+function connectMidi() {
+  navigator.requestMIDIAccess().then(access => {
+    midi = access;
+    const hook = () => { midi.inputs.forEach(x => { x.onmidimessage = onMidi; }); paintMidi(); };
+    midi.onstatechange = hook;
+    hook();
+  }, () => { midiBtn.textContent = "MIDI blocked"; });
+}
+if (navigator.requestMIDIAccess) {
+  midiBtn.hidden = false;
+  midiBtn.onclick = () => { if (midi) paintMidi(); else connectMidi(); };
+  // Reconnect without a prompt if the browser already allowed MIDI for this page.
+  try { navigator.permissions.query({ name: "midi" }).then(p => { if (p.state === "granted") connectMidi(); }, () => {}); } catch (e) {}
+}
+
 buildPool();
 renderHist();
 startRound();
